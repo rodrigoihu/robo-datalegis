@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.0)
+// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.1)
 // @namespace    http://tampermonkey.net/
-// @version      14.0
-// @description  Auto-sync inteligente com Google Sheets, modal de cadastro de órgãos, filtros DOU em cascata, Shift+Click e LinkTexto
+// @version      14.1
+// @description  Correção do campo Rodapé/Cabeçalho, auto-sync com Google Sheets, modal de órgãos, filtros DOU em cascata, Shift+Click e LinkTexto
 // @match        http://manutencao.datalegis.inf.br/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -26,7 +26,7 @@
     // =========================================================================
     function registrarLinkTextoGlobal() {
         const win = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-
+        
         win.LinkTexto = function(tipo, num, seq, ano, orgao, dispTipo, dispNum, extra) {
             const baseUrl = window.location.origin;
             const pTipo = tipo || '';
@@ -175,7 +175,6 @@
         });
     }
 
-    // Auto-sync na inicialização
     sincronizarDicionarioNuvem();
 
     // =========================================================================
@@ -184,15 +183,15 @@
     function gerarSiglaHeuristica(nome) {
         if (!nome) return "";
         const stopwords = new Set([
-            "DE", "DA", "DO", "DAS", "DOS", "E", "EM", "A", "O", "AS", "OS",
+            "DE", "DA", "DO", "DAS", "DOS", "E", "EM", "A", "O", "AS", "OS", 
             "AO", "AOS", "PARA", "COM", "POR", "NO", "NA", "NOS", "NAS", "D", "À", "ÀS"
         ]);
         const limpo = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9\s\-]/gi, " ");
         const palavras = limpo.trim().split(/\s+/).filter(w => w.length > 0 && !stopwords.has(w.toUpperCase()));
-
+        
         if (palavras.length === 0) return "";
         if (palavras.length === 1 && palavras[0].length <= 6) return palavras[0].toUpperCase();
-
+        
         return palavras.map(p => p[0].toUpperCase()).join("");
     }
 
@@ -729,8 +728,8 @@
             for (let i = 0; i < filhos.length; i++) {
                 const filho = filhos[i];
 
-                if (filho.classList.contains('orgao') ||
-                    filho.classList.contains('identifica') ||
+                if (filho.classList.contains('orgao') || 
+                    filho.classList.contains('identifica') || 
                     filho.classList.contains('publicado-secao') ||
                     filho.classList.contains('ementa')) {
                     continue;
@@ -830,7 +829,7 @@
         const textoCorpo = doc.body ? (doc.body.innerText || "") : "";
         const { numAto, anoAto } = extrairNumeroEAno(tituloPrincipal, textoCorpo, dataDOU, anoDOU);
         const partesOrgao = orgaoCru.split(/\s*\/\s*|\n+/).map(p => p.trim().toUpperCase()).filter(Boolean);
-
+        
         const tipoAto = classificarTipoAto(tituloPrincipal, textoCorpo);
         const siglaOrgao = resolverSiglaOrgao(tituloPrincipal, orgaoCru, tipoAto);
 
@@ -929,7 +928,7 @@
                    (tipoUpper === 'LCP' && txt.includes('LEI COMPLEMENTAR')) ||
                    (tipoUpper === 'LEI' && txt.includes('LEI') && !txt.includes('COMPLEMENTAR')) ||
                    (tipoUpper === 'RES' && txt.includes('RESOLUÇÃO'))) {
-
+                    
                     for (let j = 0; j < sel.options.length; j++) sel.options[j].selected = false;
                     opt.selected = true;
                     matchedVal = opt.value;
@@ -1060,16 +1059,22 @@
         setCampo('secao', dados.secaoDOU);
         setCampo('DES_EMITENTE', dados.assinante || "");
 
+        // Injeção estrita no CKEditor (Ignora Rodapé e Cabeçalho)
         try {
             if (win.CKEDITOR && win.CKEDITOR.instances) {
                 const insts = win.CKEDITOR.instances;
-                const keys = Object.keys(insts);
 
-                const editorEmenta = insts['TXT_EMENTA'] || insts['editor1'] || (keys.length > 0 ? insts[keys[0]] : null);
-                if (editorEmenta) editorEmenta.setData(dados.ementa || "");
+                if (insts['TXT_EMENTA']) {
+                    insts['TXT_EMENTA'].setData(dados.ementa || "");
+                }
 
-                const editorTexto = insts['TXT_TEXTO'] || insts['editor2'] || (keys.length > 1 ? insts[keys[keys.length - 1]] : (keys.length === 1 ? insts[keys[0]] : null));
-                if (editorTexto && dados.htmlFinal) editorTexto.setData(dados.htmlFinal);
+                if (insts['TXT_TEXTO'] && dados.htmlFinal) {
+                    insts['TXT_TEXTO'].setData(dados.htmlFinal);
+                }
+
+                // Garante que campos adicionais permaneçam limpos
+                if (insts['TXT_CABECALHO']) insts['TXT_CABECALHO'].setData("");
+                if (insts['TXT_RODAPE']) insts['TXT_RODAPE'].setData("");
             }
         } catch(e) {}
 
@@ -1085,13 +1090,20 @@
             txtCorpo.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
-        const iframes = document.querySelectorAll('.cke_wysiwyg_frame, iframe');
-        if (iframes.length > 0) {
-            try { iframes[0].contentDocument.body.innerHTML = dados.ementa || ""; } catch(e) {}
-        }
-        if (iframes.length > 1 && dados.htmlFinal) {
-            try { iframes[iframes.length - 1].contentDocument.body.innerHTML = dados.htmlFinal; } catch(e) {}
-        }
+        // Injeção de fallback ancorada especificamente ao container do TXT_TEXTO e TXT_EMENTA
+        try {
+            const ckeEmenta = document.getElementById('cke_TXT_EMENTA') || document.querySelector('[id*="TXT_EMENTA"]')?.closest('.cke');
+            const ifrEmenta = ckeEmenta ? ckeEmenta.querySelector('iframe') : null;
+            if (ifrEmenta && ifrEmenta.contentDocument && ifrEmenta.contentDocument.body) {
+                ifrEmenta.contentDocument.body.innerHTML = dados.ementa || "";
+            }
+
+            const ckeTexto = document.getElementById('cke_TXT_TEXTO') || document.querySelector('[id*="TXT_TEXTO"]')?.closest('.cke');
+            const ifrTexto = ckeTexto ? ckeTexto.querySelector('iframe') : null;
+            if (ifrTexto && ifrTexto.contentDocument && ifrTexto.contentDocument.body && dados.htmlFinal) {
+                ifrTexto.contentDocument.body.innerHTML = dados.htmlFinal;
+            }
+        } catch(e) {}
 
         registrarLinkTextoGlobal();
     }
@@ -1161,7 +1173,7 @@
                 padding: 14px; display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; overflow: hidden;
             }
             .hud-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0; }
-
+            
             .hud-input-base {
                 width: 100% !important; height: 36px !important; line-height: 20px !important;
                 padding: 0 10px !important; background: rgba(30, 41, 59, 0.5) !important;
@@ -1189,7 +1201,7 @@
                 border-color: #38bdf8 !important;
                 box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
             }
-
+            
             .hud-select {
                 appearance: none !important; -webkit-appearance: none !important; -moz-appearance: none !important;
                 background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E') !important;
@@ -1210,7 +1222,7 @@
             }
             .hud-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
             .hud-btn:active { transform: translateY(0); filter: brightness(0.95); }
-
+            
             .hud-btn-primary {
                 background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
                 color: #ffffff !important;
@@ -1227,7 +1239,7 @@
                 border: 1px solid rgba(245, 158, 11, 0.25) !important;
             }
             .hud-btn-warning:hover { background: rgba(245, 158, 11, 0.2) !important; }
-
+            
             .hud-btn-danger {
                 background: rgba(239, 68, 68, 0.12) !important;
                 color: #f87171 !important;
@@ -1244,7 +1256,7 @@
             .hud-icon-btn:hover {
                 background: rgba(255, 255, 255, 0.12); color: #f8fafc; border-color: rgba(255, 255, 255, 0.2);
             }
-
+            
             .hud-progress-bg {
                 width: 100%; height: 4px; background: rgba(255, 255, 255, 0.06);
                 border-radius: 2px; overflow: hidden; flex-shrink: 0;
@@ -1253,7 +1265,7 @@
                 height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8);
                 width: 0%; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             }
-
+            
             #hud-list-header {
                 padding: 7px 10px; background: rgba(30, 41, 59, 0.5);
                 border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px;
@@ -1280,7 +1292,7 @@
             .hud-card:hover {
                 background: rgba(30, 41, 59, 0.6); border-color: rgba(56, 189, 248, 0.25);
             }
-
+            
             .hud-badge {
                 font-size: 9px; padding: 2px 7px; border-radius: 9999px;
                 font-weight: 700; white-space: nowrap; letter-spacing: 0.03em; text-transform: uppercase;
@@ -1298,7 +1310,6 @@
                 cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.6); align-items: center; gap: 8px;
             }
 
-            /* MODAL DE CADASTRO DE ÓRGÃO */
             #hud-modal-orgao-overlay {
                 display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
                 background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(6px); z-index: 10000000;
@@ -1327,7 +1338,7 @@
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 14px;">⚡</span>
                 <span style="font-size: 13px; font-weight: 700; color: #f8fafc;">Robô DOU</span>
-                <span style="font-size: 10px; font-weight: 600; padding: 2px 6px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 6px;">v14.0</span>
+                <span style="font-size: 10px; font-weight: 600; padding: 2px 6px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 6px;">v14.1</span>
             </div>
             <div style="display: flex; gap: 6px;">
                 <button id="btn-open-orgao-modal" class="hud-icon-btn" title="Cadastrar Órgão na Planilha Google">🏛️</button>
@@ -1528,7 +1539,7 @@
         btnOpenOrgao.onclick = () => {
             const orgaoCruAtual = GM_getValue('dou_ultimo_orgao_cru', '');
             const campoOrgaoForm = document.getElementById('SGL_ORGAO') || document.querySelector('[name="SGL_ORGAO"]');
-
+            
             inputModalNome.value = orgaoCruAtual || "";
             inputModalSigla.value = (campoOrgaoForm && campoOrgaoForm.value) ? campoOrgaoForm.value : "";
 
@@ -1552,13 +1563,13 @@
                 btnModalSalvar.innerText = '💾 Salvar na Planilha';
                 if (sucesso) {
                     alert(`✅ Órgão salvo com sucesso no Google Sheets!\n\n${nome} ➔ ${sigla}`);
-
+                    
                     const campoOrgaoForm = document.getElementById('SGL_ORGAO') || document.querySelector('[name="SGL_ORGAO"]');
                     if (campoOrgaoForm) {
                         campoOrgaoForm.value = sigla;
                         campoOrgaoForm.dispatchEvent(new Event('change', { bubbles: true }));
                     }
-
+                    
                     fecharModalOrgao();
                 } else {
                     alert('❌ Não foi possível salvar na planilha. Verifique sua conexão.');
@@ -1734,7 +1745,7 @@
                     } else {
                         fila[idxReal].selecionado = isChecked;
                         GM_setValue('dou_fila', JSON.stringify(fila));
-
+                        
                         const totalSelAtual = fila.filter(it => it.selecionado === true).length;
                         const selAtualVisivel = itensVisiveis.filter(obj => fila[obj.idxReal].selecionado === true).length;
                         lblContadorFixo.innerText = `${selAtualVisivel}/${itensVisiveis.length} visíveis (${totalSelAtual} total)`;
@@ -1808,7 +1819,7 @@
         renderizarListaAtos();
 
         // =====================================================================
-        // BUSCA NO DOU COM AUTO-SYNC PRÉVIO DA NUVEM
+        // BUSCA NO DOU COM AUTO-SYNC PRÉVIO
         // =====================================================================
         btnBuscar.onclick = async () => {
             if (!inputData.value) return alert('Selecione uma data.');
@@ -1822,7 +1833,6 @@
             btnBuscar.innerHTML = '<span>⏳</span> <span>Varrendo DOU...</span>';
             btnBuscar.className = 'hud-btn hud-btn-warning';
 
-            // Auto-sync do dicionário antes da busca
             await new Promise(resolve => sincronizarDicionarioNuvem(resolve));
 
             let atosEncontrados = [];
@@ -1863,7 +1873,7 @@
                                             const link = `https://www.in.gov.br/web/dou/-/${item.urlTitle}`;
                                             const rawTit = item.title || item.hierarchyStr || 'ATO';
                                             const tit = rawTit.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
-
+                                            
                                             let orgPrincipal = "";
                                             let orgSubordinada = "";
                                             if (item.hierarchyList && item.hierarchyList.length > 0) {
@@ -1930,11 +1940,11 @@
                             }
                             resolve();
                         },
-                        onerror: () => {
+                        onerror: () => { 
                             erroDetectadoServidor = true;
                             alert('⚠️ Falha de rede ao tentar conectar com a Imprensa Nacional (DOU).');
-                            continuar = false;
-                            resolve();
+                            continuar = false; 
+                            resolve(); 
                         }
                     });
                 });
@@ -1957,7 +1967,7 @@
             GM_setValue('dou_fila', JSON.stringify(atosEncontrados));
             GM_setValue('dou_index', 0);
             statusLabel.innerText = `${atosEncontrados.length} atos carregados. Marque os atos desejados.`;
-
+            
             atualizarFiltrosCascata();
             renderizarListaAtos();
         };
@@ -1986,7 +1996,7 @@
             document.body.removeChild(link);
         };
 
-        // --- PROCESSAR COM AUTO-SYNC ---
+        // --- PROCESSAR ---
         btnIniciar.onclick = () => {
             const fila = JSON.parse(GM_getValue('dou_fila', '[]'));
             const pendentes = fila.filter(it => it.selecionado === true && it.status !== 'FEITO');
@@ -2049,7 +2059,7 @@
                         GM_setValue('dou_fila', JSON.stringify(fila));
                         GM_setValue('dou_ativo', false);
                         if (statusEl) statusEl.innerText = '❌ Imprensa Nacional (DOU) indisponível';
-
+                        
                         alert(`⚠️ O site da Imprensa Nacional (DOU) está temporariamente indisponível ou instável no momento.\n\nDetalhes: ${validacao.erro}\n\nO processamento foi pausado.`);
                         return;
                     }
