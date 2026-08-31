@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.2)
+// @name         Robô Datalegis - Layout Responsivo & Auto-Sync (Versão 14.3)
 // @namespace    http://tampermonkey.net/
-// @version      14.2
-// @description  Inicialização assíncrona compatível com Loader, auto-sync com Google Sheets, modal de órgãos e LinkTexto
+// @version      14.3
+// @description  Layout compacto anti-esmagamento para telas menores, auto-sync com Google Sheets, modal de órgãos e LinkTexto
 // @match        http://manutencao.datalegis.inf.br/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -1013,7 +1013,6 @@
                     $s.val(sel.value).trigger('change');
                     $s.trigger('chosen:updated');
                     try { $s.selectmenu('refresh'); } catch(e) {}
-                    try { $s.trigger('change.select2'); } catch(e) {}
                 } catch(e) {}
             }
         }
@@ -1129,7 +1128,7 @@
     }, true);
 
     // =========================================================================
-    // 10. PAINEL VISUAL (INICIALIZAÇÃO COMPATÍVEL COM LOADER ASSÍNCRONO)
+    // 10. PAINEL VISUAL RESPONSIVO (ANTI-ESMAGAMENTO PARA TELAS MENORES)
     // =========================================================================
     let lastCheckedVisibleIdx = null;
 
@@ -1139,13 +1138,13 @@
         const style = document.createElement('style');
         style.innerHTML = `
             #datalegis-hud {
-                position: fixed; top: 20px; right: 20px; z-index: 9999999;
-                width: 460px; height: 660px; min-width: 400px; min-height: 500px; max-width: 95vw; max-height: 95vh;
+                position: fixed; top: 15px; right: 15px; z-index: 9999999;
+                width: 440px; height: calc(100vh - 30px); max-height: 700px; min-height: 420px; max-width: 95vw;
                 resize: both; overflow: hidden;
-                background: rgba(11, 17, 32, 0.95);
+                background: rgba(11, 17, 32, 0.96);
                 backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-                border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px;
-                box-shadow: 0 24px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;
+                box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05);
                 display: none; flex-direction: column;
                 font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
                 color: #f1f5f9;
@@ -1156,39 +1155,41 @@
                 text-shadow: none !important;
             }
             #datalegis-hud-header {
-                padding: 12px 16px; background: rgba(30, 41, 59, 0.4);
+                padding: 10px 14px; background: rgba(30, 41, 59, 0.5);
                 border-bottom: 1px solid rgba(255, 255, 255, 0.06);
                 cursor: grab; display: flex; align-items: center; justify-content: space-between;
-                user-select: none; flex-shrink: 0;
+                user-select: none; flex-shrink: 0 !important;
             }
             #datalegis-hud-header:active { cursor: grabbing; }
             #datalegis-hud-body {
-                padding: 14px; display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; overflow: hidden;
+                padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; overflow: hidden;
             }
-            .hud-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0; }
+            .hud-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex-shrink: 0 !important; }
             
             .hud-input-base {
-                width: 100% !important; height: 36px !important; line-height: 20px !important;
-                padding: 0 10px !important; background: rgba(30, 41, 59, 0.5) !important;
+                width: 100% !important; height: 32px !important; line-height: 18px !important;
+                padding: 0 8px !important; background: rgba(30, 41, 59, 0.55) !important;
                 border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                border-radius: 8px !important; color: #f8fafc !important;
-                font-size: 12px !important; font-weight: 500 !important;
+                border-radius: 7px !important; color: #f8fafc !important;
+                font-size: 11.5px !important; font-weight: 500 !important;
                 outline: none !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
                 text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+                flex-shrink: 0 !important;
             }
             .hud-input-base:focus {
                 border-color: #38bdf8 !important;
                 background: rgba(30, 41, 59, 0.85) !important;
-                box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15) !important;
+                box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15) !important;
             }
 
             .hud-search-input {
-                height: 42px !important;
-                font-size: 13.5px !important;
-                padding: 0 14px !important;
-                border-radius: 8px !important;
-                background: rgba(30, 41, 59, 0.65) !important;
-                border: 1px solid rgba(56, 189, 248, 0.2) !important;
+                height: 36px !important;
+                font-size: 12.5px !important;
+                padding: 0 12px !important;
+                border-radius: 7px !important;
+                background: rgba(30, 41, 59, 0.7) !important;
+                border: 1px solid rgba(56, 189, 248, 0.25) !important;
+                flex-shrink: 0 !important;
             }
             .hud-search-input:focus {
                 border-color: #38bdf8 !important;
@@ -1199,19 +1200,20 @@
                 appearance: none !important; -webkit-appearance: none !important; -moz-appearance: none !important;
                 background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E') !important;
                 background-repeat: no-repeat !important;
-                background-position: right 10px center !important;
-                background-size: 8px !important;
-                padding-right: 24px !important;
+                background-position: right 8px center !important;
+                background-size: 7px !important;
+                padding-right: 22px !important;
                 cursor: pointer;
+                flex-shrink: 0 !important;
             }
 
             .hud-btn {
-                width: 100% !important; height: 36px !important; border-radius: 8px !important;
-                font-size: 12px !important; font-weight: 600 !important;
+                width: 100% !important; height: 34px !important; border-radius: 7px !important;
+                font-size: 11.5px !important; font-weight: 600 !important;
                 cursor: pointer !important; display: flex !important;
-                align-items: center !important; justify-content: center !important; gap: 6px !important;
+                align-items: center !important; justify-content: center !important; gap: 5px !important;
                 border: none !important; transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1) !important;
-                flex-shrink: 0;
+                flex-shrink: 0 !important;
             }
             .hud-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
             .hud-btn:active { transform: translateY(0); filter: brightness(0.95); }
@@ -1219,12 +1221,12 @@
             .hud-btn-primary {
                 background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
                 color: #ffffff !important;
-                box-shadow: 0 4px 14px rgba(14, 165, 233, 0.25) !important;
+                box-shadow: 0 3px 12px rgba(14, 165, 233, 0.25) !important;
             }
             .hud-btn-success {
                 background: linear-gradient(135deg, #10b981, #059669) !important;
                 color: #ffffff !important;
-                box-shadow: 0 4px 14px rgba(16, 185, 129, 0.22) !important;
+                box-shadow: 0 3px 12px rgba(16, 185, 129, 0.22) !important;
             }
             .hud-btn-warning {
                 background: rgba(245, 158, 11, 0.12) !important;
@@ -1242,17 +1244,17 @@
 
             .hud-icon-btn {
                 background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08);
-                color: #94a3b8; border-radius: 6px; width: 28px; height: 28px;
+                color: #94a3b8; border-radius: 6px; width: 26px; height: 26px;
                 display: flex; align-items: center; justify-content: center;
-                cursor: pointer; transition: all 0.15s ease; font-size: 13px;
+                cursor: pointer; transition: all 0.15s ease; font-size: 12px;
             }
             .hud-icon-btn:hover {
                 background: rgba(255, 255, 255, 0.12); color: #f8fafc; border-color: rgba(255, 255, 255, 0.2);
             }
             
             .hud-progress-bg {
-                width: 100%; height: 4px; background: rgba(255, 255, 255, 0.06);
-                border-radius: 2px; overflow: hidden; flex-shrink: 0;
+                width: 100%; height: 3px; background: rgba(255, 255, 255, 0.06);
+                border-radius: 2px; overflow: hidden; flex-shrink: 0 !important;
             }
             .hud-progress-fill {
                 height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8);
@@ -1260,16 +1262,16 @@
             }
             
             #hud-list-header {
-                padding: 7px 10px; background: rgba(30, 41, 59, 0.5);
-                border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px;
+                padding: 6px 8px; background: rgba(30, 41, 59, 0.5);
+                border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 7px;
                 display: flex; justify-content: space-between; align-items: center;
-                font-size: 11px; font-weight: 600; flex-shrink: 0;
+                font-size: 10.5px; font-weight: 600; flex-shrink: 0 !important;
             }
 
             .hud-list-box {
                 flex: 1 1 auto; overflow-y: auto; background: rgba(15, 23, 42, 0.6);
-                border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px;
-                padding: 6px; min-height: 110px;
+                border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 8px;
+                padding: 5px; min-height: 80px;
             }
             .hud-list-box::-webkit-scrollbar { width: 5px; }
             .hud-list-box::-webkit-scrollbar-track { background: transparent; }
@@ -1277,9 +1279,9 @@
             .hud-list-box::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 
             .hud-card {
-                padding: 7px 9px; border-radius: 8px; margin-bottom: 4px;
+                padding: 6px 8px; border-radius: 7px; margin-bottom: 4px;
                 background: rgba(30, 41, 59, 0.3); border: 1px solid rgba(255, 255, 255, 0.03);
-                display: flex; align-items: center; gap: 8px; font-size: 11px;
+                display: flex; align-items: center; gap: 7px; font-size: 11px;
                 transition: all 0.15s ease; user-select: none;
             }
             .hud-card:hover {
@@ -1287,7 +1289,7 @@
             }
             
             .hud-badge {
-                font-size: 9px; padding: 2px 7px; border-radius: 9999px;
+                font-size: 8.5px; padding: 2px 6px; border-radius: 9999px;
                 font-weight: 700; white-space: nowrap; letter-spacing: 0.03em; text-transform: uppercase;
             }
             .hud-badge-done { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
@@ -1296,11 +1298,11 @@
             .hud-badge-err  { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
 
             .hud-pill {
-                display: flex; position: fixed; top: 20px; right: 20px; z-index: 9999999;
+                display: flex; position: fixed; top: 15px; right: 15px; z-index: 9999999;
                 background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(16px);
                 border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 30px;
-                padding: 8px 18px; color: #fff; font-size: 12px; font-weight: 600;
-                cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.6); align-items: center; gap: 8px;
+                padding: 6px 14px; color: #fff; font-size: 11.5px; font-weight: 600;
+                cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.6); align-items: center; gap: 7px;
             }
 
             #hud-modal-orgao-overlay {
@@ -1309,9 +1311,9 @@
                 align-items: center; justify-content: center;
             }
             #hud-modal-orgao-card {
-                width: 480px; max-width: 90vw; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.3);
-                border-radius: 14px; padding: 18px; box-shadow: 0 20px 45px rgba(0,0,0,0.9);
-                display: flex; flex-direction: column; gap: 12px; color: #f8fafc;
+                width: 460px; max-width: 90vw; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.3);
+                border-radius: 12px; padding: 16px; box-shadow: 0 20px 45px rgba(0,0,0,0.9);
+                display: flex; flex-direction: column; gap: 10px; color: #f8fafc;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             }
         `;
@@ -1328,12 +1330,12 @@
         const header = document.createElement('div');
         header.id = 'datalegis-hud-header';
         header.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 14px;">⚡</span>
-                <span style="font-size: 13px; font-weight: 700; color: #f8fafc;">Robô DOU</span>
-                <span style="font-size: 10px; font-weight: 600; padding: 2px 6px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 6px;">v14.2</span>
+            <div style="display: flex; align-items: center; gap: 7px;">
+                <span style="font-size: 13px;">⚡</span>
+                <span style="font-size: 12.5px; font-weight: 700; color: #f8fafc;">Robô DOU</span>
+                <span style="font-size: 9.5px; font-weight: 600; padding: 1px 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 5px;">v14.3</span>
             </div>
-            <div style="display: flex; gap: 6px;">
+            <div style="display: flex; gap: 5px;">
                 <button id="btn-open-orgao-modal" class="hud-icon-btn" title="Cadastrar Órgão na Planilha Google">🏛️</button>
                 <button id="btn-export-csv" class="hud-icon-btn" title="Baixar relatório CSV">📥</button>
                 <button id="btn-minimize-hud" class="hud-icon-btn" title="Minimizar">─</button>
@@ -1379,7 +1381,7 @@
         btnBuscar.innerHTML = '<span>🔍</span> <span>Buscar Atos no DOU</span>';
         body.appendChild(btnBuscar);
 
-        // Linha 3: Organização Principal
+        // Linha 3: Organização Principal (Protegido contra compressão)
         const selectOrgPrincipal = document.createElement('select');
         selectOrgPrincipal.className = 'hud-input-base hud-select';
         selectOrgPrincipal.innerHTML = '<option value="">Selecionar Organização Principal (Todas)</option>';
@@ -1420,14 +1422,14 @@
         const headerListaFixo = document.createElement('div');
         headerListaFixo.id = 'hud-list-header';
         headerListaFixo.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
                     <input type="checkbox" id="chk-selecionar-todos-filtro">
                     <span>Selecionar do Filtro</span>
                 </label>
-                <button id="btn-desmarcar-tudo" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 10px; text-decoration: underline;" title="Desmarcar todos os atos da fila">Limpar Seleção</button>
+                <button id="btn-desmarcar-tudo" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 9.5px; text-decoration: underline;" title="Desmarcar todos os atos da fila">Limpar Seleção</button>
             </div>
-            <span id="hud-contador-visiveis" style="color: #38bdf8;">0/0 visíveis</span>
+            <span id="hud-contador-visiveis" style="color: #38bdf8; font-size: 10px;">0/0 visíveis</span>
         `;
         body.appendChild(headerListaFixo);
 
@@ -1439,8 +1441,8 @@
         const labelPausa = document.createElement('label');
         labelPausa.style.display = 'flex';
         labelPausa.style.alignItems = 'center';
-        labelPausa.style.gap = '8px';
-        labelPausa.style.fontSize = '11px';
+        labelPausa.style.gap = '6px';
+        labelPausa.style.fontSize = '10.5px';
         labelPausa.style.color = '#94a3b8';
         labelPausa.style.cursor = 'pointer';
         labelPausa.style.flexShrink = '0';
@@ -1454,12 +1456,12 @@
 
         const statusLabel = document.createElement('div');
         statusLabel.id = 'robo-status';
-        statusLabel.style.fontSize = '11px';
+        statusLabel.style.fontSize = '10.5px';
         statusLabel.style.textAlign = 'center';
-        statusLabel.style.padding = '7px';
+        statusLabel.style.padding = '5px';
         statusLabel.style.background = 'rgba(255, 255, 255, 0.03)';
         statusLabel.style.border = '1px solid rgba(255, 255, 255, 0.05)';
-        statusLabel.style.borderRadius = '8px';
+        statusLabel.style.borderRadius = '6px';
         statusLabel.style.color = '#94a3b8';
         statusLabel.style.flexShrink = '0';
         statusLabel.innerText = 'Aguardando busca no DOU';
@@ -1495,21 +1497,21 @@
         modalOverlay.id = 'hud-modal-orgao-overlay';
         modalOverlay.innerHTML = `
             <div id="hud-modal-orgao-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
-                    <strong style="font-size: 14px; color: #38bdf8;">🏛️ Cadastrar Órgão na Planilha Nuvem</strong>
-                    <button id="btn-modal-fechar-orgao" style="background: none; border: none; color: #94a3b8; font-size: 16px; cursor: pointer;">✕</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px;">
+                    <strong style="font-size: 13px; color: #38bdf8;">🏛️ Cadastrar Órgão na Planilha Nuvem</strong>
+                    <button id="btn-modal-fechar-orgao" style="background: none; border: none; color: #94a3b8; font-size: 15px; cursor: pointer;">✕</button>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <label style="font-size: 11px; color: #94a3b8;">Nome Completo do Órgão no DOU (conforme diário):</label>
-                    <textarea id="modal-orgao-nome" rows="2" style="width: 100%; padding: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 12px; outline: none; resize: vertical;" placeholder="Ex: MINISTÉRIO DA SAÚDE / AGÊNCIA NACIONAL DE VIGILÂNCIA SANITÁRIA / DIRETORIA COLEGIADA"></textarea>
+                <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <label style="font-size: 10.5px; color: #94a3b8;">Nome Completo do Órgão no DOU (conforme diário):</label>
+                    <textarea id="modal-orgao-nome" rows="2" style="width: 100%; padding: 7px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 11.5px; outline: none; resize: vertical;" placeholder="Ex: MINISTÉRIO DA SAÚDE / AGÊNCIA NACIONAL DE VIGILÂNCIA SANITÁRIA / DIRETORIA COLEGIADA"></textarea>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <label style="font-size: 11px; color: #94a3b8;">Sigla Hierárquica Datalegis (iniciando pela subunidade):</label>
-                    <input type="text" id="modal-orgao-sigla" style="width: 100%; height: 36px; padding: 0 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 12px; outline: none;" placeholder="Ex: DC/ANVISA/MS">
+                <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <label style="font-size: 10.5px; color: #94a3b8;">Sigla Hierárquica Datalegis (iniciando pela subunidade):</label>
+                    <input type="text" id="modal-orgao-sigla" style="width: 100%; height: 32px; padding: 0 8px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #fff; font-size: 11.5px; outline: none;" placeholder="Ex: DC/ANVISA/MS">
                 </div>
-                <div style="display: flex; gap: 8px; margin-top: 4px;">
-                    <button id="btn-modal-salvar-orgao" style="flex: 1; height: 38px; background: #16a34a; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">💾 Salvar na Planilha</button>
-                    <button id="btn-modal-cancelar-orgao" style="flex: 1; height: 38px; background: #334155; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Cancelar</button>
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button id="btn-modal-salvar-orgao" style="flex: 1; height: 34px; background: #16a34a; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11.5px;">💾 Salvar na Planilha</button>
+                    <button id="btn-modal-cancelar-orgao" style="flex: 1; height: 34px; background: #334155; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11.5px;">Cancelar</button>
                 </div>
             </div>
         `;
@@ -1752,10 +1754,10 @@
                 divInfo.style.overflow = 'hidden';
                 divInfo.innerHTML = `
                     <div style="display: flex; align-items: baseline; gap: 4px;">
-                        <span style="color: #64748b; font-weight: 700; font-size: 10px;">#${idxReal + 1}</span>
+                        <span style="color: #64748b; font-weight: 700; font-size: 9.5px;">#${idxReal + 1}</span>
                         <a href="${item.url}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">${item.titulo}</a>
                     </div>
-                    <div style="color: #94a3b8; font-size: 10px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    <div style="color: #94a3b8; font-size: 9.5px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         ${item.orgPrincipal || ''} ${item.orgSubordinada ? '▸ ' + item.orgSubordinada : ''}
                     </div>
                 `;
@@ -2113,7 +2115,6 @@
         });
     }
 
-    // Inicializador imediato compatível com execução assíncrona
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(iniciarPainelRobo, 500);
     } else {
