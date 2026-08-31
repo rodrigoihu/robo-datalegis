@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.1)
+// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.2)
 // @namespace    http://tampermonkey.net/
-// @version      14.1
-// @description  Correção do campo Rodapé/Cabeçalho, auto-sync com Google Sheets, modal de órgãos, filtros DOU em cascata, Shift+Click e LinkTexto
+// @version      14.2
+// @description  Inicialização assíncrona compatível com Loader, auto-sync com Google Sheets, modal de órgãos e LinkTexto
 // @match        http://manutencao.datalegis.inf.br/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -16,13 +16,10 @@
 (function() {
     'use strict';
 
-    // =========================================================================
-    // CONFIGURAÇÃO DA PLANILHA GOOGLE
-    // =========================================================================
     const GOOGLE_SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwPynoJkXtcJB3XUdFeNRll0bT6z8Xf7yEWA3IgQoXlBGKCDgOwv07mGVC4K8sOnLZnaw/exec";
 
     // =========================================================================
-    // 1. INJEÇÃO ATIVA DA FUNÇÃO LINKTEXTO NO AMBIENTE DE MANUTENÇÃO
+    // 1. INJEÇÃO ATIVA DA FUNÇÃO LINKTEXTO
     // =========================================================================
     function registrarLinkTextoGlobal() {
         const win = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
@@ -54,7 +51,7 @@
     setInterval(registrarLinkTextoGlobal, 2000);
 
     // =========================================================================
-    // 2. DICIONÁRIO BASE LOCAL & SINCRONIZAÇÃO AUTOMÁTICA EM NUVEM
+    // 2. DICIONÁRIO BASE LOCAL & SINCRONIZAÇÃO EM NUVEM
     // =========================================================================
     let DICIONARIO_SIGLAS = {
         "MINISTÉRIO DA AGRICULTURA E PECUÁRIA": "MAPA",
@@ -1016,6 +1013,7 @@
                     $s.val(sel.value).trigger('change');
                     $s.trigger('chosen:updated');
                     try { $s.selectmenu('refresh'); } catch(e) {}
+                    try { $s.trigger('change.select2'); } catch(e) {}
                 } catch(e) {}
             }
         }
@@ -1059,7 +1057,6 @@
         setCampo('secao', dados.secaoDOU);
         setCampo('DES_EMITENTE', dados.assinante || "");
 
-        // Injeção estrita no CKEditor (Ignora Rodapé e Cabeçalho)
         try {
             if (win.CKEDITOR && win.CKEDITOR.instances) {
                 const insts = win.CKEDITOR.instances;
@@ -1072,7 +1069,6 @@
                     insts['TXT_TEXTO'].setData(dados.htmlFinal);
                 }
 
-                // Garante que campos adicionais permaneçam limpos
                 if (insts['TXT_CABECALHO']) insts['TXT_CABECALHO'].setData("");
                 if (insts['TXT_RODAPE']) insts['TXT_RODAPE'].setData("");
             }
@@ -1090,7 +1086,6 @@
             txtCorpo.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
-        // Injeção de fallback ancorada especificamente ao container do TXT_TEXTO e TXT_EMENTA
         try {
             const ckeEmenta = document.getElementById('cke_TXT_EMENTA') || document.querySelector('[id*="TXT_EMENTA"]')?.closest('.cke');
             const ifrEmenta = ckeEmenta ? ckeEmenta.querySelector('iframe') : null;
@@ -1134,15 +1129,13 @@
     }, true);
 
     // =========================================================================
-    // 10. PAINEL VISUAL COM MODAL DE CADASTRO DE ÓRGÃO
+    // 10. PAINEL VISUAL (INICIALIZAÇÃO COMPATÍVEL COM LOADER ASSÍNCRONO)
     // =========================================================================
-    window.addEventListener('load', () => {
-        setTimeout(iniciarPainelRobo, 800);
-    });
-
     let lastCheckedVisibleIdx = null;
 
     function iniciarPainelRobo() {
+        if (document.getElementById('datalegis-hud')) return;
+
         const style = document.createElement('style');
         style.innerHTML = `
             #datalegis-hud {
@@ -1338,7 +1331,7 @@
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 14px;">⚡</span>
                 <span style="font-size: 13px; font-weight: 700; color: #f8fafc;">Robô DOU</span>
-                <span style="font-size: 10px; font-weight: 600; padding: 2px 6px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 6px;">v14.1</span>
+                <span style="font-size: 10px; font-weight: 600; padding: 2px 6px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 6px;">v14.2</span>
             </div>
             <div style="display: flex; gap: 6px;">
                 <button id="btn-open-orgao-modal" class="hud-icon-btn" title="Cadastrar Órgão na Planilha Google">🏛️</button>
@@ -1819,7 +1812,7 @@
         renderizarListaAtos();
 
         // =====================================================================
-        // BUSCA NO DOU COM AUTO-SYNC PRÉVIO
+        // BUSCA NO DOU
         // =====================================================================
         btnBuscar.onclick = async () => {
             if (!inputData.value) return alert('Selecione uma data.');
@@ -2118,6 +2111,14 @@
                 alert('⚠️ Falha de rede ao tentar conectar com a Imprensa Nacional (DOU). O processamento foi interrompido.');
             }
         });
+    }
+
+    // Inicializador imediato compatível com execução assíncrona
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(iniciarPainelRobo, 500);
+    } else {
+        window.addEventListener('DOMContentLoaded', () => setTimeout(iniciarPainelRobo, 500));
+        window.addEventListener('load', () => setTimeout(iniciarPainelRobo, 500));
     }
 
 })();
