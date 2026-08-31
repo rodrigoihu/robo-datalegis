@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Robô Datalegis - Layout Responsivo & Auto-Sync (Versão 14.3)
+// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.4)
 // @namespace    http://tampermonkey.net/
-// @version      14.3
-// @description  Layout compacto anti-esmagamento para telas menores, auto-sync com Google Sheets, modal de órgãos e LinkTexto
+// @version      14.4
+// @description  Data real do ato no título da ANVISA, layout responsivo anti-esmagamento, auto-sync com Google Sheets e LinkTexto
 // @match        http://manutencao.datalegis.inf.br/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -16,6 +16,9 @@
 (function() {
     'use strict';
 
+    // =========================================================================
+    // CONFIGURAÇÃO DA PLANILHA GOOGLE
+    // =========================================================================
     const GOOGLE_SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwPynoJkXtcJB3XUdFeNRll0bT6z8Xf7yEWA3IgQoXlBGKCDgOwv07mGVC4K8sOnLZnaw/exec";
 
     // =========================================================================
@@ -175,8 +178,41 @@
     sincronizarDicionarioNuvem();
 
     // =========================================================================
-    // 3. MOTOR DE RESOLUÇÃO DE ÓRGÃOS
+    // 3. MOTOR DE RESOLUÇÃO DE ÓRGÃOS & EXTRAÇÃO DE DATAS
     // =========================================================================
+    function extrairDataDoAto(titulo, corpo, dataFallback) {
+        const MESES = {
+            'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'MARCO': '03', 'ABRIL': '04',
+            'MAIO': '05', 'JUNHO': '06', 'JULHO': '07', 'AGOSTO': '08', 'SETEMBRO': '09',
+            'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
+        };
+
+        // 1. Extração prioritária do Título (ex: DE 26 DE AGOSTO DE 2026)
+        const matchTitExt = (titulo || "").match(/(\d{1,2})\s+DE\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ]+)\s+DE\s+(\d{4})/i);
+        if (matchTitExt) {
+            const mesUpper = matchTitExt[2].toUpperCase().trim();
+            if (MESES[mesUpper]) {
+                return `${String(matchTitExt[1]).padStart(2, '0')}/${MESES[mesUpper]}/${matchTitExt[3]}`;
+            }
+        }
+
+        const matchTitNum = (titulo || "").match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+        if (matchTitNum) {
+            return `${String(matchTitNum[1]).padStart(2, '0')}/${String(matchTitNum[2]).padStart(2, '0')}/${matchTitNum[3]}`;
+        }
+
+        // 2. Extração secundária do preâmbulo/corpo do ato
+        const matchCorpoExt = (corpo || "").match(/(?:em|de)\s+(\d{1,2})\s+de\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ]+)\s+de\s+(\d{4})/i);
+        if (matchCorpoExt) {
+            const mesUpper = matchCorpoExt[2].toUpperCase().trim();
+            if (MESES[mesUpper]) {
+                return `${String(matchCorpoExt[1]).padStart(2, '0')}/${MESES[mesUpper]}/${matchCorpoExt[3]}`;
+            }
+        }
+
+        return dataFallback || "";
+    }
+
     function gerarSiglaHeuristica(nome) {
         if (!nome) return "";
         const stopwords = new Set([
@@ -830,6 +866,9 @@
         const tipoAto = classificarTipoAto(tituloPrincipal, textoCorpo);
         const siglaOrgao = resolverSiglaOrgao(tituloPrincipal, orgaoCru, tipoAto);
 
+        // Extração exata da data do ato para a ANVISA
+        const dataAtoReal = extrairDataDoAto(tituloPrincipal, textoCorpo, dataDOU);
+
         let tituloFormulario = tituloPrincipal;
         const isAnvisa = (siglaOrgao.includes("ANVISA") || orgaoCru.toUpperCase().includes("ANVISA") || tituloPrincipal.includes("ANVISA"));
 
@@ -848,9 +887,10 @@
                 tipoExtenso = "Despacho";
             }
 
-            if (tipoExtenso && numAto && dataDOU) {
+            if (tipoExtenso && numAto) {
                 const numFormatado = isNaN(parseInt(numAto, 10)) ? numAto : parseInt(numAto, 10).toLocaleString('pt-BR');
-                tituloFormulario = `${tipoExtenso} Anvisa nº ${numFormatado}, de ${dataDOU}`;
+                const dataParaTitulo = dataAtoReal || dataDOU;
+                tituloFormulario = `${tipoExtenso} Anvisa nº ${numFormatado}, de ${dataParaTitulo}`;
             }
         }
 
@@ -1128,7 +1168,7 @@
     }, true);
 
     // =========================================================================
-    // 10. PAINEL VISUAL RESPONSIVO (ANTI-ESMAGAMENTO PARA TELAS MENORES)
+    // 10. PAINEL VISUAL RESPONSIVO (ANTI-ESMAGAMENTO)
     // =========================================================================
     let lastCheckedVisibleIdx = null;
 
@@ -1333,7 +1373,7 @@
             <div style="display: flex; align-items: center; gap: 7px;">
                 <span style="font-size: 13px;">⚡</span>
                 <span style="font-size: 12.5px; font-weight: 700; color: #f8fafc;">Robô DOU</span>
-                <span style="font-size: 9.5px; font-weight: 600; padding: 1px 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 5px;">v14.3</span>
+                <span style="font-size: 9.5px; font-weight: 600; padding: 1px 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 5px;">v14.4</span>
             </div>
             <div style="display: flex; gap: 5px;">
                 <button id="btn-open-orgao-modal" class="hud-icon-btn" title="Cadastrar Órgão na Planilha Google">🏛️</button>
@@ -1381,7 +1421,7 @@
         btnBuscar.innerHTML = '<span>🔍</span> <span>Buscar Atos no DOU</span>';
         body.appendChild(btnBuscar);
 
-        // Linha 3: Organização Principal (Protegido contra compressão)
+        // Linha 3: Organização Principal
         const selectOrgPrincipal = document.createElement('select');
         selectOrgPrincipal.className = 'hud-input-base hud-select';
         selectOrgPrincipal.innerHTML = '<option value="">Selecionar Organização Principal (Todas)</option>';
