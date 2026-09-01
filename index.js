@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.4)
+// @name         Robô Datalegis - Sincronização Automática Contínua (Versão 14.5)
 // @namespace    http://tampermonkey.net/
-// @version      14.4
-// @description  Data real do ato no título da ANVISA, layout responsivo anti-esmagamento, auto-sync com Google Sheets e LinkTexto
+// @version      14.5
+// @description  Atos superiores (Leis, Decretos, MPs) com órgão "NI", data real ANVISA, layout responsivo e auto-sync
 // @match        http://manutencao.datalegis.inf.br/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -187,7 +187,6 @@
             'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
         };
 
-        // 1. Extração prioritária do Título (ex: DE 26 DE AGOSTO DE 2026)
         const matchTitExt = (titulo || "").match(/(\d{1,2})\s+DE\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ]+)\s+DE\s+(\d{4})/i);
         if (matchTitExt) {
             const mesUpper = matchTitExt[2].toUpperCase().trim();
@@ -201,7 +200,6 @@
             return `${String(matchTitNum[1]).padStart(2, '0')}/${String(matchTitNum[2]).padStart(2, '0')}/${matchTitNum[3]}`;
         }
 
-        // 2. Extração secundária do preâmbulo/corpo do ato
         const matchCorpoExt = (corpo || "").match(/(?:em|de)\s+(\d{1,2})\s+de\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ]+)\s+de\s+(\d{4})/i);
         if (matchCorpoExt) {
             const mesUpper = matchCorpoExt[2].toUpperCase().trim();
@@ -229,11 +227,21 @@
     }
 
     function resolverSiglaOrgao(titulo, orgaoRaw, tipoAto) {
+        const tipoUpper = (tipoAto || "").toUpperCase().trim();
+        const tUpper = (titulo || "").toUpperCase().trim();
+
+        // --- PRIORIDADE ZERO: Atos de Hierarquia Superior (Leis, Decretos, Medidas Provisórias) ---
+        const TIPOS_SUPERIORES = new Set(["LEI", "LCP", "DEC", "DEL", "DLG", "MPV", "EMC"]);
+        if (TIPOS_SUPERIORES.has(tipoUpper) || /^(?:LEI(?:\s+COMPLEMENTAR|\s+ORDIN[AÁ]RIA)?|DECRETO(?:-LEI|\s+LEGISLATIVO)?|MEDIDA\s+PROVIS[OÓ]RIA|EMENDA\s+CONSTITUCIONAL)\b/i.test(tUpper)) {
+            return "NI";
+        }
+
+        // --- PRIORIDADE 1: Extração Direta do Título ---
         const matchSiglaTitulo = (titulo || "").match(/(?:PORTARIA|INSTRUÇÃO NORMATIVA|DESPACHO|RESOLUÇÃO|DECISÃO|ACÓRDÃO|EDITAL|AVISO)\s+(?:CONJUNTA\s+|INTERMINISTERIAL\s+|NORMATIVA\s+)?([A-Z0-9\-_]+(?:\/[A-Z0-9\-_]+)+)\s+N[ºo°\.]/i);
         if (matchSiglaTitulo) {
             let siglaExtraida = matchSiglaTitulo[1].toUpperCase().trim();
             if (siglaExtraida.includes("ANS") && !siglaExtraida.includes("MS")) siglaExtraida += "/MS";
-            if ((tipoAto === "RDC" || (titulo || "").toUpperCase().includes("RDC")) && siglaExtraida.includes("ANVISA") && !siglaExtraida.startsWith("RDC/")) {
+            if ((tipoAto === "RDC" || tUpper.includes("RDC")) && siglaExtraida.includes("ANVISA") && !siglaExtraida.startsWith("RDC/")) {
                 siglaExtraida = "RDC/" + siglaExtraida;
             }
             return siglaExtraida;
@@ -242,6 +250,7 @@
         if (!orgaoRaw) return "";
         const orgaoCruUpper = orgaoRaw.trim().toUpperCase();
 
+        // --- PRIORIDADE 2: Dicionário / Nuvem Completo ---
         if (DICIONARIO_SIGLAS[orgaoCruUpper]) {
             return DICIONARIO_SIGLAS[orgaoCruUpper];
         }
@@ -249,6 +258,7 @@
         const partes = orgaoRaw.split(/\s*\/\s*|\n+/).map(p => p.trim()).filter(Boolean);
         let siglas = [];
 
+        // --- PRIORIDADE 3: Dicionário por partes + Heurística de Iniciais ---
         for (let i = 0; i < partes.length; i++) {
             const pUpper = partes[i].toUpperCase();
             let siglaAchada = "";
@@ -300,7 +310,7 @@
             siglaFinal = siglas[0];
         }
 
-        if ((tipoAto === "RDC" || (titulo || "").toUpperCase().includes("RDC")) && siglaFinal.includes("ANVISA")) {
+        if ((tipoAto === "RDC" || tUpper.includes("RDC")) && siglaFinal.includes("ANVISA")) {
             if (!siglaFinal.startsWith("RDC/")) {
                 siglaFinal = "RDC/" + siglaFinal;
             }
@@ -315,6 +325,8 @@
     function classificarTipoAto(titulo, texto) {
         const t = (titulo || "").toUpperCase().trim();
         const b = (texto || "").toUpperCase();
+
+        if (t.includes("EMENDA CONSTITUCIONAL") || t.startsWith("EMC ")) return "EMC";
 
         if (t.includes("PORTARIA CONJUNTA")) return "PCJ";
         if (t.includes("PORTARIA INTERMINISTERIAL")) return "PIM";
@@ -344,9 +356,9 @@
         if (t.includes("DECRETO LEGISLATIVO") || t.includes("DECRETO-LEGISLATIVO") || t.startsWith("DLG ")) return "DLG";
         if (t.includes("DECRETO") || t.startsWith("DEC ")) return "DEC";
 
-        if (t.includes("LEI COMPLEMENTAR")) return "LCP";
-        if (t.includes("LEI")) return "LEI";
-        if (t.includes("MEDIDA PROVISÓRIA") || t.includes("MEDIDA PROVISORIA")) return "MPV";
+        if (t.includes("LEI COMPLEMENTAR") || t.startsWith("LCP ")) return "LCP";
+        if (t.includes("LEI") || t.startsWith("LEI ")) return "LEI";
+        if (t.includes("MEDIDA PROVISÓRIA") || t.includes("MEDIDA PROVISORIA") || t.startsWith("MPV ")) return "MPV";
 
         if (t.includes("CESSÃO DE USO") || t.includes("CONTRATO DE CESSÃO")) return "CES";
         if (t.includes("TERMO ADITIVO") || t.includes("EXTRATO DE ADITIVO")) return "ETA";
@@ -866,7 +878,6 @@
         const tipoAto = classificarTipoAto(tituloPrincipal, textoCorpo);
         const siglaOrgao = resolverSiglaOrgao(tituloPrincipal, orgaoCru, tipoAto);
 
-        // Extração exata da data do ato para a ANVISA
         const dataAtoReal = extrairDataDoAto(tituloPrincipal, textoCorpo, dataDOU);
 
         let tituloFormulario = tituloPrincipal;
@@ -957,6 +968,7 @@
                 const txt = (opt.text || "").toUpperCase().trim();
 
                 if (val === tipoUpper || txt === tipoUpper || txt.startsWith(tipoUpper + " ") || txt.startsWith(tipoUpper + " -") || txt.startsWith(tipoUpper + "-") ||
+                   (tipoUpper === 'EMC' && txt.includes('EMENDA CONSTITUCIONAL')) ||
                    (tipoUpper === 'POR' && txt.includes('PORTARIA')) ||
                    (tipoUpper === 'DEP' && txt.includes('DESPACHO')) ||
                    (tipoUpper === 'DEL' && (txt.includes('DECRETO-LEI') || txt.includes('DECRETO LEI'))) ||
@@ -1373,7 +1385,7 @@
             <div style="display: flex; align-items: center; gap: 7px;">
                 <span style="font-size: 13px;">⚡</span>
                 <span style="font-size: 12.5px; font-weight: 700; color: #f8fafc;">Robô DOU</span>
-                <span style="font-size: 9.5px; font-weight: 600; padding: 1px 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 5px;">v14.4</span>
+                <span style="font-size: 9.5px; font-weight: 600; padding: 1px 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 5px;">v14.5</span>
             </div>
             <div style="display: flex; gap: 5px;">
                 <button id="btn-open-orgao-modal" class="hud-icon-btn" title="Cadastrar Órgão na Planilha Google">🏛️</button>
@@ -1854,7 +1866,7 @@
         renderizarListaAtos();
 
         // =====================================================================
-        // BUSCA NO DOU
+        // BUSCA NO DOU COM AUTO-SYNC PRÉVIO
         // =====================================================================
         btnBuscar.onclick = async () => {
             if (!inputData.value) return alert('Selecione uma data.');
